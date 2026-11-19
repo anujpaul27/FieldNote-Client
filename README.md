@@ -25,6 +25,7 @@ The workspace opens as **Maya Chen**, the demo administrator. Open her account m
 | **All user notes** (`/all-notes`) | As an administrator, filter notes by owner or category and open them in a read-only view. |
 | **Interest groups** (`/interests`) | As an administrator, browse groups generated from the interests in user profiles. |
 | **My profile / Sign in** (`/profile`, `/sign-in`) | Edit your name, email, and interests; switch between roles; or sign out. |
+| **Login & registration** (`/login`, `/register`) | Log in with an email and password — seeded demo accounts share the password `fieldnote` — or register a new member account, which is stored in this browser like everything else. |
 
 **Quick search:** Use the search button or press **Ctrl+K** / **⌘K**. Use **↑/↓** to navigate, **Enter** to open a result, and **Esc** to close. Motion respects the device’s reduced-motion preference.
 
