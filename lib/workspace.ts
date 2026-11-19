@@ -40,10 +40,16 @@ export const MEMBER_ID = 'samira';
 export const STORAGE_KEY = 'fieldnote.workspace.1';
 export const SESSION_KEY = 'fieldnote.session.1';
 export const LAYOUT_KEY = 'fieldnote.layout.1';
+export const ACCOUNTS_KEY = 'fieldnote.accounts.1';
+export interface AccountRecord { password: string; personId: string; }
+export type AccountStore = Record<string, AccountRecord>;
+/** Demo-only shared password for the seeded @fieldnote.example accounts. */
+export const DEMO_PASSWORD = 'fieldnote';
 export const tones: Tone[] = ['olive', 'sand', 'lilac', 'fern', 'rose', 'blue'];
 export const sections = {
   '/': 'My notes', '/posts': 'Public posts', '/people': 'People', '/all-notes': 'All user notes',
   '/interests': 'Interest groups', '/profile': 'My profile', '/sign-in': 'Sign in',
+  '/login': 'Log in', '/register': 'Register',
 } as const;
 export type Route = keyof typeof sections;
 export const adminRoutes: Route[] = ['/people', '/all-notes', '/interests'];
@@ -117,3 +123,5 @@ export const cleanInterests = (text: string) => {
     return true;
   }).slice(0, 10);
 };
+export const normalizeEmail = (email: string) => compactText(email).toLowerCase();
+export const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalizeEmail(email));

@@ -180,6 +180,7 @@ export function SignInView({ people, onSignIn }: { people: Person[]; onSignIn: (
           <Avatar person={p} size="large" /><span><strong>{p.name}</strong><small>{roleLabel(p.role)}</small></span><ChevronRight size={19} className="signin-arrow" />
         </button>)}
       </div>
+      <div className="auth-switch">Have an email and password? <Link href="/login">Log in</Link><span aria-hidden="true"> · </span>New here? <Link href="/register">Create an account</Link></div>
       <div className="signin-disclaimer"><ShieldCheck size={17} />Demo only. No password or live authentication is used.</div>
       <Link href="/posts" className="btn text-btn signin-public">Browse public posts <ArrowRight size={15} /></Link>
     </div></div>

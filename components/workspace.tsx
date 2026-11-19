@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { ArrowLeft, ArrowLeftRight, CheckCircle2, ChevronRight, ChevronsUpDown, CircleHelp, Files, Globe2, LayoutGrid, LockKeyhole, LogOut, Menu, NotebookPen, Search, ShieldCheck, Sprout, UserRound, UsersRound, X, type LucideIcon } from 'lucide-react';
-import { ADMIN_ID, LAYOUT_KEY, MEMBER_ID, SESSION_KEY, STORAGE_KEY, adminRoutes, makeId, roleLabel, sections, seed, tones, type Note, type Person, type Post, type Route, type Workspace } from '@/lib/workspace';
+import { ACCOUNTS_KEY, ADMIN_ID, DEMO_PASSWORD, LAYOUT_KEY, MEMBER_ID, SESSION_KEY, STORAGE_KEY, adminRoutes, makeId, roleLabel, sections, seed, tones, type AccountStore, type Note, type Person, type Post, type Route, type Workspace } from '@/lib/workspace';
 import { ActionMenu, Avatar, BlankState, Brand, Heading, Overlay, type Action } from './ui';
 import { NotesView, type NoteLayout } from './notes';
 import { AllNotesView, getInterestGroups, InterestsView, PeopleView, PostsView, ProfileView, SignInView } from './views';
+import { LoginPage, RegisterPage } from './auth';
 import { ConfirmPanel, GroupReader, NoteEditor, NoteReader, PersonEditor, PersonReader, PostEditor, PostReader, QuickSearch, WorkspaceGuide, type NoteDraft, type PersonDraft, type PostDraft } from './panels';
 
 type Panel = { type: 'note'; id?: string }
@@ -78,6 +79,7 @@ export function FieldnoteApp() {
   const [author, setAuthor] = useState('');
   const [shortcut, setShortcut] = useState('Ctrl');
   const [feedback, setFeedback] = useState<{id: number; text: string} | null>(null);
+  const [accounts, setAccounts] = useState<AccountStore>({});
   const activeUser = data.people.find(p => p.id === session);
   const isAdmin = activeUser?.role === 'admin';
   const myNotes = activeUser ? data.notes.filter(n => n.ownerId === activeUser.id) : [];
@@ -100,6 +102,11 @@ export function FieldnoteApp() {
       if (savedUser) setSession(savedUser === 'signed-out' ? null : savedUser);
       const savedLayout = localStorage.getItem(LAYOUT_KEY);
       if (savedLayout === 'grid' || savedLayout === 'list') setLayout(savedLayout);
+      const savedAccounts = localStorage.getItem(ACCOUNTS_KEY);
+      if (savedAccounts) {
+        const parsed = JSON.parse(savedAccounts);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) setAccounts(parsed as AccountStore);
+      }
     } catch { /* The demo still works without browser storage. */ }
     if (/Mac|iPhone|iPad/i.test(navigator.platform)) setShortcut('⌘');
     setReady(true);
@@ -110,9 +117,10 @@ export function FieldnoteApp() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       localStorage.setItem(SESSION_KEY, session ?? 'signed-out');
       localStorage.setItem(LAYOUT_KEY, layout);
+      localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
     } catch { /* Storage may be blocked or full. */ }
-  }, [data, session, layout, ready]);
-  useEffect(() => { document.title = `Fieldnote — ${activeUser || route === '/posts' ? sections[route] : 'Sign in'}`; }, [route, activeUser]);
+  }, [data, session, layout, accounts, ready]);
+  useEffect(() => { document.title = `Fieldnote — ${activeUser || route === '/posts' || route === '/login' || route === '/register' ? sections[route] : 'Sign in'}`; }, [route, activeUser]);
   useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }); }, [route, session]);
   useEffect(() => {
     const mobile = window.matchMedia('(max-width: 900px)');
@@ -128,7 +136,7 @@ export function FieldnoteApp() {
   useEffect(() => {
     function keys(e: KeyboardEvent) {
       if (e.key === 'Escape' && drawer && !panel) closeDrawer();
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && activeUser && route !== '/sign-in' && (!panel || panel.type === 'search')) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && activeUser && !['/sign-in', '/login', '/register'].includes(route) && (!panel || panel.type === 'search')) {
         e.preventDefault();
         setDrawer(false);
         setPanel(panel?.type === 'search' ? null : {type: 'search'});
@@ -156,6 +164,43 @@ export function FieldnoteApp() {
   }
   function signOut() {
     setSession(null); closePanel(); setDrawer(false); setFeedback(null); router.push('/sign-in');
+  }
+  /** Demo-only credential login. Returns an error message, or null on success. */
+  function loginWithCredentials(email: string, password: string): string | null {
+    const record = accounts[email];
+    const known = record ? data.people.find(p => p.id === record.personId) : undefined;
+    if (record && known) {
+      if (record.password !== password) return 'Incorrect password for that email address.';
+      enterSession(record.personId);
+      notify(`Welcome back, ${known.name.split(' ')[0]}!`);
+      return null;
+    }
+    // Fall back to the shared demo password for the seeded @fieldnote.example accounts.
+    const person = data.people.find(p => p.email.toLowerCase() === email);
+    if (person && person.email.endsWith('@fieldnote.example') && password === DEMO_PASSWORD) {
+      enterSession(person.id);
+      notify(`Welcome back, ${person.name.split(' ')[0]}!`);
+      return null;
+    }
+    if (record) setAccounts(prev => Object.fromEntries(Object.entries(prev).filter(([key]) => key !== email)));
+    return 'No account found with that email address.';
+  }
+  /** Creates a member account and signs it in. Returns an error message, or null on success. */
+  function registerAccount(name: string, email: string, password: string): string | null {
+    if (accounts[email] || data.people.some(p => p.email.toLowerCase() === email)) {
+      return 'An account with that email already exists — try logging in instead.';
+    }
+    const id = makeId();
+    const person: Person = { id, name, email, role: 'member', interests: [], joined: new Date().toISOString(), tone: tones[data.people.length % tones.length] };
+    setData(prev => ({ ...prev, people: [person, ...prev.people] }));
+    setAccounts(prev => ({ ...prev, [email]: { password, personId: id } }));
+    enterSession(id);
+    notify(`Welcome to Fieldnote, ${name.split(' ')[0]}!`);
+    return null;
+  }
+  function enterSession(id: string) {
+    setSession(id); setDrawer(false); closePanel(); setAuthor('');
+    router.push('/');
   }
   function viewAuthor(id: string) {
     setAuthor(id); closePanel(); router.push('/posts');
@@ -192,6 +237,7 @@ export function FieldnoteApp() {
   function deletePerson(person: Person) {
     if (!isAdmin || person.id === activeUser?.id || person.id === ADMIN_ID || person.id === MEMBER_ID) return;
     setData(prev => ({people: prev.people.filter(p => p.id !== person.id), notes: prev.notes.filter(n => n.ownerId !== person.id), posts: prev.posts.filter(p => p.authorId !== person.id)}));
+    setAccounts(prev => Object.fromEntries(Object.entries(prev).filter(([, rec]) => rec.personId !== person.id)));
     closePanel(); notify('User removed');
   }
 
@@ -200,12 +246,14 @@ export function FieldnoteApp() {
     const post = panel?.type === 'post' ? data.posts.find(p => p.id === panel.id) : undefined;
     return <MotionConfig reducedMotion="user">
       <div data-workspace-content>
-        <header className="guest-header"><Link href="/sign-in" aria-label="Fieldnote sign in"><Brand /></Link><Link className="btn fn-btn guest-signin" href="/sign-in">Sign in</Link></header>
+        <header className="guest-header"><Link href="/sign-in" aria-label="Fieldnote sign in"><Brand /></Link><span className="guest-actions"><Link className="btn fn-btn guest-login" href="/login">Log in</Link><Link className="btn fn-btn guest-signin" href="/register">Create account</Link></span></header>
         <main className="main-content guest-content"><PostsView posts={data.posts} people={data.people} author={author} onAuthor={setAuthor} onOpen={p => setPanel({type: 'post', id: p.id})} /></main>
       </div>
       <Overlay open={!!post} kind="sheet" title={post?.title ?? ''} eyebrow="PUBLIC POSTS" onClose={closePanel}>{post && <PostReader post={post} author={data.people.find(p => p.id === post.authorId)} onAuthor={() => viewAuthor(post.authorId)} />}</Overlay>
     </MotionConfig>;
   }
+  if (route === '/login') return <MotionConfig reducedMotion="user"><LoginPage people={data.people} onSubmit={loginWithCredentials} /></MotionConfig>;
+  if (route === '/register') return <MotionConfig reducedMotion="user"><RegisterPage onSubmit={registerAccount} /></MotionConfig>;
   if (!activeUser || route === '/sign-in') return <MotionConfig reducedMotion="user"><SignInView people={data.people} onSignIn={setDemo} /></MotionConfig>;
   const blocked = adminRoutes.includes(route) && !isAdmin;
   const otherAccount = activeUser.id === ADMIN_ID ? MEMBER_ID : ADMIN_ID;
